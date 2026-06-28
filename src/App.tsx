@@ -55,7 +55,14 @@ export default function App() {
       unsubscribeUsers = onSnapshot(collection(db, "users"), (snapshot) => {
         const usersList: User[] = [];
         snapshot.forEach((doc) => {
-          usersList.push({ id: doc.id, ...doc.data() } as User);
+          const data = doc.data();
+          const subscription = data.subscription || {
+            plan: "None",
+            activatedAt: null,
+            expiresAt: null,
+            durationDays: 0
+          };
+          usersList.push({ id: doc.id, ...data, subscription } as User);
         });
         setUsers(usersList);
 
@@ -107,6 +114,14 @@ export default function App() {
     if (savedUser) {
       try {
         const parsed = JSON.parse(savedUser);
+        if (parsed && !parsed.subscription) {
+          parsed.subscription = {
+            plan: "None",
+            activatedAt: null,
+            expiresAt: null,
+            durationDays: 0
+          };
+        }
         setCurrentUser(parsed);
       } catch (e) {
         console.error("Error reading saved user", e);
@@ -144,7 +159,7 @@ export default function App() {
     return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
   };
 
-  const userRemainingDays = currentUser ? calculateDaysLeft(currentUser.subscription.expiresAt) : 0;
+  const userRemainingDays = currentUser && currentUser.subscription ? calculateDaysLeft(currentUser.subscription.expiresAt) : 0;
   const isSubscriptionActive = currentUser && currentUser.status === "approved" && userRemainingDays > 0;
 
   // ---------------------------------------------------------------------------
@@ -265,7 +280,16 @@ export default function App() {
     const found = users.find(u => u.id === userId);
     if (!found) return;
     
-    let updated = { ...found, status: "approved" as const };
+    let updated = { 
+      ...found, 
+      status: "approved" as const,
+      subscription: found.subscription || {
+        plan: "None" as const,
+        activatedAt: null,
+        expiresAt: null,
+        durationDays: 0
+      }
+    };
     
     // Auto-activate requested plan if exists
     if (found.subscriptionRequest) {
@@ -904,7 +928,7 @@ export default function App() {
                     </div>
 
                     <p className="text-[10px] text-zinc-500 font-mono mb-4">
-                      Your current plan is: {currentUser.subscription.plan === "None" ? "No subscription active" : `Expired ${currentUser.subscription.plan}`} • Expiry date: {currentUser.subscription.expiresAt ? new Date(currentUser.subscription.expiresAt).toLocaleDateString() : "Never activated"}
+                      Your current plan is: {!currentUser.subscription || currentUser.subscription.plan === "None" ? "No subscription active" : `Expired ${currentUser.subscription.plan}`} • Expiry date: {currentUser.subscription?.expiresAt ? new Date(currentUser.subscription.expiresAt).toLocaleDateString() : "Never activated"}
                     </p>
 
                     {currentUser.subscriptionRequest ? (

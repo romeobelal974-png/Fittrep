@@ -734,7 +734,7 @@ export default function AdminView({
                 .map((user) => {
                   const isPending = user.status === "pending";
                   const isRejected = user.status === "rejected";
-                  const daysRemaining = calculateDaysLeft(user.subscription.expiresAt);
+                  const daysRemaining = calculateDaysLeft(user.subscription?.expiresAt || null);
                   const isExpanded = expandedUserId === user.id;
 
                   return (
@@ -852,12 +852,12 @@ export default function AdminView({
                         <div className="bg-zinc-950/60 rounded-xl p-3 border border-zinc-850 text-xs text-zinc-400 flex flex-wrap gap-x-6 gap-y-1">
                           <div>
                             <span className="text-zinc-500 font-mono">Plan:</span>{" "}
-                            <span className="text-zinc-200 font-bold">{user.subscription.plan}</span>
+                            <span className="text-zinc-200 font-bold">{user.subscription?.plan || "None"}</span>
                           </div>
                           <div>
                             <span className="text-zinc-500 font-mono">Expires At:</span>{" "}
                             <span className="text-zinc-200 font-bold">
-                              {user.subscription.expiresAt
+                              {user.subscription?.expiresAt
                                 ? new Date(user.subscription.expiresAt).toLocaleDateString()
                                 : "No Active Plan"}
                             </span>

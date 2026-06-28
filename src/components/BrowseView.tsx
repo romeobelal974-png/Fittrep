@@ -43,7 +43,7 @@ export default function BrowseView({
 
   // Calculate formatted expiration date
   const getExpirationDateString = () => {
-    if (!currentUser.subscription.expiresAt) return "N/A";
+    if (!currentUser.subscription?.expiresAt) return "N/A";
     const date = new Date(currentUser.subscription.expiresAt);
     return date.toLocaleDateString(lang === "en" ? "en-US" : "ar-EG", {
       year: "numeric",
@@ -82,7 +82,7 @@ export default function BrowseView({
             </div>
             <h3 className="text-lg font-black text-white mt-1 flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-emerald-400" />
-              {getPlanTranslation(currentUser.subscription.plan)}
+              {getPlanTranslation(currentUser.subscription?.plan || "None")}
             </h3>
             <p className="text-xs text-zinc-400 mt-0.5">
               {lang === "en" ? "Account ID" : "معرّف الحساب"}: {currentUser.phone}
