@@ -1,20 +1,46 @@
 import { useState, useEffect, useRef } from "react";
 import { Play, Dumbbell } from "lucide-react";
 
+// Global in-memory cache to persist generated base64 thumbnails across component remounts
+const THUMBNAIL_CACHE = new Map<string, string>();
+
 interface Mp4ThumbnailProps {
   videoUrl: string;
   className?: string;
 }
 
 export default function Mp4Thumbnail({ videoUrl, className = "" }: Mp4ThumbnailProps) {
-  const [thumbnail, setThumbnail] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [thumbnail, setThumbnail] = useState<string | null>(() => THUMBNAIL_CACHE.get(videoUrl) || null);
+  const [loading, setLoading] = useState<boolean>(!THUMBNAIL_CACHE.has(videoUrl));
+  const [isInView, setIsInView] = useState<boolean>(THUMBNAIL_CACHE.has(videoUrl));
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
+  // 1. Lazy load trigger via IntersectionObserver
   useEffect(() => {
-    if (!videoUrl) return;
+    if (THUMBNAIL_CACHE.has(videoUrl)) return;
 
-    // Check if it's actually a direct MP4 URL
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "250px" } // Preload when 250px near viewport
+    );
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [videoUrl]);
+
+  // 2. Video frame extraction logic
+  useEffect(() => {
+    if (!videoUrl || !isInView || THUMBNAIL_CACHE.has(videoUrl)) return;
+
+    // Verify file type
     const isMp4 = videoUrl.toLowerCase().includes(".mp4") || videoUrl.toLowerCase().includes("mixkit.co");
     if (!isMp4) {
       setLoading(false);
@@ -24,11 +50,10 @@ export default function Mp4Thumbnail({ videoUrl, className = "" }: Mp4ThumbnailP
     let isMounted = true;
     const video = document.createElement("video");
     
-    // We set crossOrigin to anonymous in case CORS allows it, but handle error cases safely
     video.crossOrigin = "anonymous";
     video.src = videoUrl;
     video.preload = "auto";
-    video.currentTime = 1.5; // Seek to 1.5 seconds to capture a good frame
+    video.currentTime = 1.5; // Seek to capture a clear action frame
     video.muted = true;
     video.playsInline = true;
 
@@ -36,17 +61,18 @@ export default function Mp4Thumbnail({ videoUrl, className = "" }: Mp4ThumbnailP
       if (!isMounted) return;
       try {
         const canvas = document.createElement("canvas");
-        canvas.width = 640;
-        canvas.height = 360;
+        // Lightweight canvas resolution for efficient memory allocation
+        canvas.width = 400;
+        canvas.height = 225;
         const ctx = canvas.getContext("2d");
         if (ctx) {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const dataUrl = canvas.toDataURL("image/jpeg");
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.65); // High quality, low file footprint
+          THUMBNAIL_CACHE.set(videoUrl, dataUrl);
           setThumbnail(dataUrl);
         }
       } catch (err) {
-        console.warn("CORS restriction or error creating canvas thumbnail:", err);
-        // Fallback is handled by state being null
+        console.warn("CORS limitation or failed canvas frame read:", err);
       } finally {
         setLoading(false);
         video.removeEventListener("seeked", handleSeeked);
@@ -62,7 +88,6 @@ export default function Mp4Thumbnail({ videoUrl, className = "" }: Mp4ThumbnailP
     video.addEventListener("seeked", handleSeeked);
     video.addEventListener("error", handleError);
 
-    // Force loading standard frame
     video.load();
 
     return () => {
@@ -71,7 +96,7 @@ export default function Mp4Thumbnail({ videoUrl, className = "" }: Mp4ThumbnailP
       video.removeEventListener("error", handleError);
       video.src = "";
     };
-  }, [videoUrl]);
+  }, [videoUrl, isInView]);
 
   if (thumbnail) {
     return (
@@ -80,13 +105,17 @@ export default function Mp4Thumbnail({ videoUrl, className = "" }: Mp4ThumbnailP
         alt="Workout Thumbnail"
         className={`w-full h-full object-cover transition-transform duration-500 hover:scale-110 ${className}`}
         referrerPolicy="no-referrer"
+        loading="lazy"
       />
     );
   }
 
-  // Fallback styling with dynamic gradient overlay, dumbbell icon and play button
+  // Fallback placeholder during loading or CORS restrictions
   return (
-    <div className={`w-full h-full bg-gradient-to-br from-zinc-900 to-zinc-800 flex flex-col items-center justify-center relative group overflow-hidden ${className}`}>
+    <div 
+      ref={containerRef}
+      className={`w-full h-full bg-gradient-to-br from-zinc-900 to-zinc-800 flex flex-col items-center justify-center relative group overflow-hidden ${className}`}
+    >
       <div className="absolute inset-0 bg-emerald-500/10 mix-blend-overlay group-hover:bg-emerald-500/20 transition-all duration-300" />
       <div className="w-12 h-12 rounded-full bg-zinc-950/80 border border-zinc-800 flex items-center justify-center text-emerald-500 group-hover:text-emerald-400 group-hover:scale-110 transition-all duration-300 shadow-xl relative z-10">
         <Play className="w-5 h-5 fill-current translate-x-0.5" />

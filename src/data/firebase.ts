@@ -67,40 +67,38 @@ export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
  * categories, initial users, and workout videos.
  */
 export async function seedFirestoreIfNeeded() {
+  const seedVersion = "v6_sync_all_videos";
+  const seededKey = `fitrep_firestore_seeded_${seedVersion}`;
+  
+  if (localStorage.getItem(seededKey) === "true") {
+    console.log("Database already seeded with default categories and videos.");
+    return;
+  }
+
   try {
-    // 1. Sync and update categories directly (very cheap, ensures correct name e.g. "Upper")
-    console.log("Syncing categories...");
+    // 1. Sync and update categories directly (ensures correct names and structure)
+    console.log("Syncing default categories to Firestore...");
     for (const cat of INITIAL_CATEGORIES) {
       await setDoc(doc(db, "categories", cat.id), cat);
     }
 
-    // 2. Sync only missing default videos to avoid overwriting or massive redundant writes
-    console.log("Checking for missing default videos...");
-    const videoSnap = await getDocs(collection(db, "videos"));
-    const existingVideoIds = new Set<string>();
-    videoSnap.forEach((doc) => {
-      existingVideoIds.add(doc.id);
-    });
-
-    let addedCount = 0;
+    // 2. Sync and update default videos (overwrites to ensure latest URLs and categories)
+    console.log("Syncing default videos to Firestore...");
     for (const vid of INITIAL_VIDEOS) {
-      if (!existingVideoIds.has(vid.id)) {
-        await setDoc(doc(db, "videos", vid.id), vid);
-        addedCount++;
-      }
-    }
-    if (addedCount > 0) {
-      console.log(`Seeded ${addedCount} new videos into Firestore.`);
+      await setDoc(doc(db, "videos", vid.id), vid);
     }
 
     // 3. Seed initial users if empty
+    console.log("Checking and seeding initial users...");
     const userSnap = await getDocs(collection(db, "users"));
     if (userSnap.empty) {
-      console.log("Seeding initial users into Firestore...");
       for (const u of INITIAL_USERS) {
         await setDoc(doc(db, "users", u.id), u);
       }
     }
+
+    localStorage.setItem(seededKey, "true");
+    console.log("Firestore default categories, videos, and users successfully synced!");
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, "seed_collections");
   }

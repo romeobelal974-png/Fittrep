@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Search, Heart, Play, Clock, Eye, Sparkles, Shield, Compass, Calendar, CheckCircle } from "lucide-react";
 import { Video, Category, User } from "../types";
 import { TranslationSet } from "../data/translations";
@@ -30,16 +30,20 @@ export default function BrowseView({
 
   const isRtl = lang === "ar";
 
-  // Filter videos based on category and search
-  const filteredVideos = videos.filter((vid) => {
-    const matchesCategory = selectedCategoryId === "all" || vid.categoryId === selectedCategoryId;
+  // Filter videos based on category and search (memoized for high performance)
+  const filteredVideos = useMemo(() => {
     const cleanQuery = searchQuery.toLowerCase().trim();
-    const matchesSearch =
-      vid.title.toLowerCase().includes(cleanQuery) ||
-      vid.description.toLowerCase().includes(cleanQuery) ||
-      vid.trainer.toLowerCase().includes(cleanQuery);
-    return matchesCategory && matchesSearch;
-  });
+    return videos.filter((vid) => {
+      const matchesCategory = selectedCategoryId === "all" || vid.categoryId === selectedCategoryId;
+      if (!matchesCategory) return false;
+      if (!cleanQuery) return true;
+      return (
+        vid.title.toLowerCase().includes(cleanQuery) ||
+        vid.description.toLowerCase().includes(cleanQuery) ||
+        vid.trainer.toLowerCase().includes(cleanQuery)
+      );
+    });
+  }, [videos, selectedCategoryId, searchQuery]);
 
   // Calculate formatted expiration date
   const getExpirationDateString = () => {
